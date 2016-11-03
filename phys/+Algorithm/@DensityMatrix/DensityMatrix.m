@@ -4,23 +4,23 @@ classdef DensityMatrix < handle
     
     properties
         atom
+        subspace
         dim
         mat
         col
     end
     
     methods
-        function obj = DensityMatrix(atom, opt)
+        function obj = DensityMatrix(atom, subspace)
             obj.atom = atom;
             
             if nargin < 2
-                obj.mat = eye(atom.dim(1))/atom.dim(1);
-                obj.dim = atom.dim(1);
-            else
-                sum_dim = sum( atom.dim(opt) );
-                obj.mat = eye( sum_dim )/sum_dim;
-                obj.dim = sum_dim;
+                subspace = [Atom.Subspace.GS];
             end
+            
+            obj.subspace = subspace;
+            obj.dim = sum( atom.dim(subspace) );
+            obj.mat = eye( obj.dim )/obj.dim;
             obj.col = obj.mat(:);
         end
         
@@ -31,6 +31,7 @@ classdef DensityMatrix < handle
         function set_matrix(obj, m)
             obj.mat = m;
             obj.col = m(:);
+            obj.dim = size(m,1);
         end
         
         function val = mean(obj, op)
@@ -46,6 +47,40 @@ classdef DensityMatrix < handle
             new_col = expm(-ker*dt)*obj.col;
             new_rho = Algorithm.DensityMatrix(obj.atom);
             new_rho.set_matrix( reshape(new_col, [obj.dim, obj.dim]) );
+        end
+        
+        function s = plus(obj1, obj2)
+            if Atom.isSameAtom(obj1.atom, obj2.atom)
+                s = Algorithm.DensityMatrix(obj1.atom);
+                s.mat = obj1.mat + obj2.mat;
+                s.col = s.mat(:);
+            else
+                error('obj1.name=%s but obj2.name=%s', obj1.atom.name, obj2.atom.name);
+            end
+        end
+        
+        function n = norm(obj)
+            n = norm(obj.mat);
+        end
+        
+        function s = minus(obj1, obj2)
+            if Atom.isSameAtom(obj1.atom, obj2.atom)
+                s = Algorithm.DensityMatrix(obj1.atom);
+                s.mat=obj1.mat - obj2.mat;
+                s.col=s.mat(:);
+            else
+                error('obj1.name=%s but obj2.name=%s', obj1.atom.name, obj2.atom.name);
+            end                
+        end
+        
+        function col = getQuasiSteadyStateCol(obj)
+            dimG= obj.atom.dim( obj.subspace(1) );
+            dimE= obj.atom.dim( obj.subspace(2) );
+            
+            matE=obj.mat(1:dimE, 1:dimE);
+            matG=obj.mat(dimE+1:dimE+dimG, dimE+1:dimE+dimG);
+            
+            col = [matE(:); matG(:)];            
         end
         
     end

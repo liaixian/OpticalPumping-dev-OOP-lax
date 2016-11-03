@@ -25,6 +25,8 @@ classdef AlkaliMetal < handle
         
         operator
         
+%        zeeman_terms
+        
 %         rho
     end
     
@@ -47,10 +49,11 @@ classdef AlkaliMetal < handle
             if nargin > 1
                 obj.set_eigen(coil);
             end
+            
         end
         
         function set_eigen(obj, coil)
-            obj.eigen=Algorithm.Eigen(obj, coil);
+            obj.eigen=Algorithm.Eigen(obj, coil{3});
             
             obj.matEigen.Imat = obj.eigen.transform(obj.mat.Imat);
             obj.matEigen.Smat = obj.eigen.transform(obj.mat.Smat);
@@ -58,20 +61,26 @@ classdef AlkaliMetal < handle
             obj.matEigen.IS = obj.eigen.transform(obj.mat.IS);
             obj.matEigen.F2 = obj.eigen.transform(obj.mat.F2);
             obj.matEigen.mu = obj.eigen.transform(obj.mat.mu);
-           
+            for k=1:3
+                obj.matEigen.zeeman_terms(:,:,k) = - obj.matEigen.mu{1}(:,:,k)*coil{k}.magB/(2*pi*h_bar)*1e-6;
+            end
+            
+%             obj.dipole();
             obj.operator = obj.spinOperator();
-            obj.dipole();
         end
         
         function res = energy_spectrum(obj, state, coil)
-            res.magB = coil.iter.dataList;
+            coilx=coil{1};
+            coily=coil{2};
+            coilz=coil{3};
+            res.magB = coilz.iter.dataList;
             res.energy = zeros(obj.dim(state), ...
-                               coil.iter.length); 
+                               coilz.iter.length); 
             
-            coil.restart0();
-            while coil.iter.hasNext
-                obj.set_eigen( coil.move_forward );
-                res.energy(:, coil.iter.cursor) ...
+            coilz.restart0();
+            while coilz.iter.hasNext
+                obj.set_eigen( {coilx, coily, coilz.move_forward} );
+                res.energy(:, coilz.iter.cursor) ...
                     = obj.eigen.getEnergy(state);
             end
         end
@@ -92,6 +101,14 @@ classdef AlkaliMetal < handle
             v.I = rho.mean(i_mat);
             v.S = rho.mean(s_mat);
             v.F = rho.mean(f_mat);
+        end
+        
+        function p = proj_op(obj, k, space)
+            if nargin < 3
+                space = Atom.Subspace.GS;
+            end
+            p = zeros( obj.dim(space) );
+            p(k,k) = 1;
         end
         
     end
