@@ -22,7 +22,7 @@ gases={ ...
 };
 
 pumpBeam=AlkaliLaserBeam(5e-7, ...                     % power in [W]
-                         rb87, Atom.Transition.D1, 4580,...%-2.25e3, ... % ref Atom 
+                         rb87, Atom.Transition.D1, 3760,...%-2.25e3, ... % ref Atom 
                          [0 0 1], [1, 0], 2e-3);       % direction, pol, spot size
                      
 %% System
@@ -35,12 +35,17 @@ pumpBeam=AlkaliLaserBeam(5e-7, ...                     % power in [W]
 
 %%
 
+Dk = pumpBeam.refTransition;
+%gg=rb85.dim(1); ge=rb85.dim(1+Dk);
+gg=rb87.dim(1); ge=rb87.dim(1+Dk);
+
 timeList = linspace(0, 1e3, 101);
-pop=zeros(16, length(timeList));
-id8=eye(8);
-init_state=zeros(64+64+64+64, 1); init_state(end-63:end) = id8(:)/8;
-projE=zeros(64+64+64+64, 1);projE(1:64) = id8(:);
-projG=zeros(64+64+64+64, 1);projE(end-63:end) = id8(:);
+pop=zeros(gg+ge, length(timeList));
+ide=eye(ge); idg=eye(gg);
+init_state=zeros(gg^2+2*gg*ge+ge^2, 1); init_state(end-gg^2+1:end) = idg(:)/gg;
+%projE=zeros(64+64+64+64, 1);projE(1:64) = id8(:);
+%projG=zeros(64+64+64+64, 1);projE(end-63:end) = id8(:);
+proj=zeros(gg^2+2*gg*ge+ge^2, 1);proj(1:ge^2) = ide(:);proj(end-gg^2+1:end) = idg(:);
 
 sys=VacuumCell(gases, pumpBeam);
 ker = sys.interaction{1, 2}.matrix.fullG;
@@ -49,13 +54,13 @@ for k=1:length(timeList)
     t=timeList(k);
     fprintf('time = %f\n', t);
     state=expm(-ker*t)*init_state;
-    pop(:,k)=state([logical(projE); logical(projG)]);
+    pop(:,k)=state(logical(proj));%([logical(projE); logical(projG)]);
 end
 figure;
 subplot(1,3,1)
-plot(timeList,pop(1:8, :))
+plot(timeList,pop(1:ge, :))
 subplot(1,3,2)
-plot(timeList,pop(9:16, :))
+plot(timeList,real(pop(ge+1:gg+ge, :)))
 subplot(1,3,3)
 plot(timeList,sum(pop,1))
 
@@ -109,7 +114,7 @@ for k = 1:length(freqList)
     ker_full=sys.interaction{1, 2}.matrix.fullG;
     t_inf = 1e3;
     ss=expm(-ker_full*t_inf)*init_state;
-    ss0=ss([logical(projE); logical(projG)]);
+    ss0=ss(logical(proj));%([logical(projE); logical(projG)]);
     pop0=abs(ss0);
     max_pos=(pop0==max(pop0));
     pop0=pop0/ss0(max_pos);
