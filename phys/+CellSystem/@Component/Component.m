@@ -10,6 +10,7 @@ classdef Component < handle
         
         stuff
         state
+        dimList
 %        steady_state
         option
         frequency
@@ -28,6 +29,7 @@ classdef Component < handle
                 case 'vapor'
                     obj.hasDynamics = 1;
                     obj.state = stuff.atom.operator.equilibrium_state{1+stuff.transition};
+                    obj.dimList = obj.state.dimList;
                 otherwise
                     warning('non-supported type %s', obj.type);
             end
@@ -44,6 +46,22 @@ classdef Component < handle
                     warning('non-supported type %s', obj.type);
             end
             obj.frequency = freq;
+        end
+        
+        function [vList, wList, sigmaV] = velocity_sampling(obj, n, x)
+            switch nargin
+                case 1
+                    n = 8; x = 3;
+                case 2
+                    x = 3;
+            end
+            
+            try
+                sigmaV = obj.stuff.velocity;
+            catch
+                error('no Velocity information');
+            end
+            [vList, wList] = lgwt(n, -x*sigmaV, x*sigmaV);
         end
         
         function disp0(obj)

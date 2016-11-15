@@ -17,23 +17,27 @@ rb87=AlkaliMetal('87Rb', coil);
 temperature=273.15+20;
 gases={  Gas(rb87, 'vapor', temperature, Atom.Transition.D1) };
 
-pumpBeam=AlkaliLaserBeam(5e-7, ...                     % power in [W]
-                         rb87, Atom.Transition.D1, 4580,...%-2.25e3, ... % ref Atom 
+pumpBeam=AlkaliLaserBeam(5e-4, ...                     % power in [W]
+                         rb87, Atom.Transition.D1, -3064,...%-2.25e3, ... % ref Atom 
                          [0 0 1], [1, 0], 2e-3);       % direction, pol, spot size
                      
+
+%%
+t_pump = 2e1;
+sys=VacuumCell(gases, pumpBeam.set_detuning(4548));
+vData=sys.velocity_resolved_pumping(2, t_pump, 'diagnose');
+
 %% System
-t_inf = 1e2;
-freqList = linspace(3.5e3, 5e3, 301);
-popG=zeros(8, length(freqList));
+t_pump = 2e1;
+freqList = linspace(-5.0e3, 6e3, 251);
+abs_res=zeros(1, length(freqList));
 for k=1:length(freqList)
-    freq = freqList(k);
-    fprintf('freq = %f\n', freq);
+    freq = freqList(k); fprintf('freq = %f\n', freq);
     sys=VacuumCell(gases, pumpBeam.set_detuning(freq));
-    state_freq = sys.evolution(2, t_inf);
-    popG(:, k) = state_freq.population(2);
+    abs_res(k) = sys.absorption_cross_section(2, t_pump);
 end
 figure;
-plot(freqList, sum(popG(6:8, :), 1), 'r*-', freqList,  sum(popG(1:5, :), 1), 'bd-')
+plot(freqList, abs_res, 'r*-')
 
 
 %%
@@ -42,6 +46,7 @@ timeList = linspace(0, 1e4, 101);
 popG_t=zeros(8, length(timeList));
 popE_t=zeros(8, length(timeList));
 sys=VacuumCell(gases, pumpBeam.set_detuning(4575));
+sys.interaction{1, 2}.calc_matrix();
 for k=1:length(timeList)
     t=timeList(k);
     fprintf('time = %f\n', t);
