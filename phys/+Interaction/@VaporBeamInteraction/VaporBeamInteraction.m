@@ -17,10 +17,11 @@ classdef VaporBeamInteraction < Interaction.AbstractInteraction
             obj.parameter.velocity = 0.0;
             %obj.calc_matrix();
             
-            obj.parameter.sampling_nRaw = 12;
-            obj.parameter.sampling_nFine = 32;
+            obj.parameter.sampling_nRaw = 16;
+            obj.parameter.sampling_nFine = 16;
             obj.parameter.sampling_xRange = 5;
             obj.parameter.sampling_gamma = 50; %MHz
+            
         end
         
         function obj = calc_matrix(obj)
@@ -40,62 +41,52 @@ classdef VaporBeamInteraction < Interaction.AbstractInteraction
             obj.parameter.velocity = v;
         end 
         
+        function detune = get_atom_beam_detuning(obj)
+            atom_to_ref_detune = ( obj.vapor.atom.parameters.omega(obj.beam.refTransition)...
+                                 - obj.beam.refAtom.parameters.omega(obj.beam.refTransition) ) /2/pi*1e-6;
+            detune = obj.beam.detune - atom_to_ref_detune;
+        end
+        
         function [len, vList, uList, wList, sigmaV] = velocity_sampling(obj)
             nRaw = obj.parameter.sampling_nRaw; 
             nFine = obj.parameter.sampling_nFine;
             xRange = obj.parameter.sampling_xRange; 
             gamma = obj.parameter.sampling_gamma;
   
-            center_freq = obj.beam.detune;
+            center_freq = obj.get_atom_beam_detuning();
             refTrans = obj.beam.refTransition;
             transFreq =obj.vapor.atom.eigen.transFreq{1+refTrans, 1}(:);
             
-            [~, idx] = min(abs(center_freq-transFreq));
-            det = center_freq-transFreq(idx);
-            v_res = 2*pi*det*1e6/obj.beam.wavenumber;
-            v_gamma = 2*pi*gamma*1e6/obj.beam.wavenumber;
+            
+            resonance = center_freq - transFreq;
+            intervals = [resonance - gamma, resonance + gamma];
+            v_intervals = 2*pi* intervals *1e6/obj.beam.wavenumber;
             
             sigmaV = obj.vapor.velocity;
-            if(v_gamma > xRange*sigmaV)
-                error('too large v_gamma %f', v_gamma);
-            end
+            v_range = xRange*[-sigmaV, sigmaV];
             
-            left = v_res -v_gamma; right = v_res + v_gamma; width = xRange*sigmaV;
-            if right < -width || left > width
-                vListFine = []; wListFine = [];
-                [vListRaw, wListRaw] = lgwt(nRaw,-width, width);
-            elseif (left < -width) && (-width < right)
-                [vListFine, wListFine] = lgwt(nFine, left, right);
-                [vListRaw, wListRaw] = lgwt(nRaw, right, width);
-            elseif (-width < left) && (right < width)
-                [vListFine, wListFine] = lgwt(nFine, left, right);
-                [vListRaw1, wListRaw1] = lgwt(nRaw, -width, left);
-                [vListRaw2, wListRaw2] = lgwt(nRaw, right, width);
-                vListRaw = [vListRaw1; vListRaw2];
-                wListRaw = [wListRaw1; wListRaw2];
-            else % left < width < right
-                [vListFine, wListFine] = lgwt(nFine, left, right);
-                [vListRaw, wListRaw] = lgwt(nRaw, -width, left);
+            [raw_range, fine_range] = interval_complement(v_intervals, v_range);
+            
+            vRaw = cell(1, size(raw_range, 1));
+            wRaw = cell(1, size(raw_range, 1));
+            for k=1:size(raw_range, 1)
+                npoint = round(nRaw * (raw_range(k,2) - raw_range(k,1))/1000 );
+                [vRaw{k}, wRaw{k} ] = lgwt(npoint, raw_range(k, 1), raw_range(k, 2));
             end
-            vListTemp = [vListFine; vListRaw];
-            wListTemp = [wListFine; wListRaw];
+            vFine = cell(1, size(fine_range, 1));
+            wFine = cell(1, size(fine_range, 1));
+            for k=1:size(fine_range, 1)
+                npoint = round(nFine* (fine_range(k,2) - fine_range(k,1))/100 );
+                [vFine{k}, wFine{k} ] = lgwt(npoint, fine_range(k, 1), fine_range(k, 2));
+            end
+            vListTemp = cell2mat([vFine(:); vRaw(:)]);
+            wListTemp = cell2mat([wFine(:); wRaw(:)]);
             [vList, idx] = sort(vListTemp);
             wList = wListTemp(idx);
-            
+
             len = length(vList);
             uList = exp(-vList.*vList/2/sigmaV/sigmaV)/sqrt(2*pi)/sigmaV;
         end
-        
-%         function set_velocity_list(obj, varargin)
-%             if nargin == 2
-%                 v=varargin{1};
-%                 obj.parameter.velocityList=v;
-%             elseif nargin == 4
-%                 minV=varargin{1}; maxV=varargin{2}; nV=varargin{3};
-%                 obj.parameter.velocityList=linspace(minV, maxV, nV);
-%             end
-%                 
-%         end
     end
     
 end
